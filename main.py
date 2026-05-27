@@ -1,6 +1,5 @@
 import os
 import tempfile
-from typing import List
 
 import pdfplumber
 from fastapi import FastAPI, UploadFile, File
@@ -17,8 +16,9 @@ def healthcheck():
 async def parse_pdf(
     file: UploadFile = File(...),
     start_page: int = 0,
-    max_pages: int = 25
+    max_pages: int = 25,
 ):
+    suffix = ".pdf"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp_path = tmp.name
@@ -30,12 +30,20 @@ async def parse_pdf(
 
     try:
         with pdfplumber.open(tmp_path) as pdf:
-             total_pages = len(pdf.pages)
-             end_page = min(start_page + max_pages, total_pages)
+            total_pages = len(pdf.pages)
 
-        for i in range(start_page, end_page):
-            page_num = i + 1
-            page = pdf.pages[i]
+            if start_page < 0:
+                start_page = 0
+
+            if max_pages < 1:
+                max_pages = 1
+
+            end_page = min(start_page + max_pages, total_pages)
+
+            for i in range(start_page, end_page):
+                page_num = i + 1
+                page = pdf.pages[i]
+                text = page.extract_text() or ""
 
                 pages.append({
                     "page": page_num,
@@ -49,13 +57,12 @@ async def parse_pdf(
         return {
             "filename": file.filename,
             "total_pages": total_pages,
-            "processed_pages": limit,
-            "bad_pages_count": len(bad_pages),
-            "bad_pages_preview": bad_pages[:50],
-            "pages_preview": pages,
             "start_page": start_page,
             "end_page": end_page,
             "processed_pages": end_page - start_page,
+            "bad_pages_count": len(bad_pages),
+            "bad_pages_preview": bad_pages[:50],
+            "pages_preview": pages,
         }
 
     finally:
