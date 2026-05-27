@@ -14,8 +14,11 @@ def healthcheck():
 
 
 @app.post("/parse-pdf")
-async def parse_pdf(file: UploadFile = File(...), max_pages: int = 20):
-    suffix = ".pdf"
+async def parse_pdf(
+    file: UploadFile = File(...),
+    start_page: int = 0,
+    max_pages: int = 25
+):
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp_path = tmp.name
@@ -27,13 +30,12 @@ async def parse_pdf(file: UploadFile = File(...), max_pages: int = 20):
 
     try:
         with pdfplumber.open(tmp_path) as pdf:
-            total_pages = len(pdf.pages)
-            limit = min(max_pages, total_pages)
+             total_pages = len(pdf.pages)
+             end_page = min(start_page + max_pages, total_pages)
 
-            for i in range(limit):
-                page_num = i + 1
-                page = pdf.pages[i]
-                text = page.extract_text() or ""
+        for i in range(start_page, end_page):
+            page_num = i + 1
+            page = pdf.pages[i]
 
                 pages.append({
                     "page": page_num,
@@ -51,6 +53,9 @@ async def parse_pdf(file: UploadFile = File(...), max_pages: int = 20):
             "bad_pages_count": len(bad_pages),
             "bad_pages_preview": bad_pages[:50],
             "pages_preview": pages,
+            "start_page": start_page,
+            "end_page": end_page,
+            "processed_pages": end_page - start_page,
         }
 
     finally:
