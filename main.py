@@ -14,7 +14,7 @@ def healthcheck():
 
 
 @app.post("/parse-pdf")
-async def parse_pdf(file: UploadFile = File(...)):
+async def parse_pdf(file: UploadFile = File(...), max_pages: int = 20):
     suffix = ".pdf"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -28,25 +28,29 @@ async def parse_pdf(file: UploadFile = File(...)):
     try:
         with pdfplumber.open(tmp_path) as pdf:
             total_pages = len(pdf.pages)
+            limit = min(max_pages, total_pages)
 
-            for i, page in enumerate(pdf.pages, start=1):
+            for i in range(limit):
+                page_num = i + 1
+                page = pdf.pages[i]
                 text = page.extract_text() or ""
 
                 pages.append({
-                    "page": i,
+                    "page": page_num,
                     "chars": len(text),
                     "text_preview": text[:500],
                 })
 
                 if len(text.strip()) < 50:
-                    bad_pages.append(i)
+                    bad_pages.append(page_num)
 
         return {
             "filename": file.filename,
             "total_pages": total_pages,
+            "processed_pages": limit,
             "bad_pages_count": len(bad_pages),
             "bad_pages_preview": bad_pages[:50],
-            "pages_preview": pages[:10],
+            "pages_preview": pages,
         }
 
     finally:
